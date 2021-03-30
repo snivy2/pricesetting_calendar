@@ -126,11 +126,12 @@
         <div>价格设置</div>
         <div style="text-align: center; margin-top: 15px">
           <el-date-picker
-            v-model="value1"
+            v-model="formtime"
             type="daterange"
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
+            :picker-options="pickerBeginDateBefore"
           >
           </el-date-picker>
         </div>
@@ -189,14 +190,15 @@
               v-model="priceForm.peopleNum"
               controls-position="right"
               @change="handleChange"
-              :min="1"
-              :max="10"
+              :min="0"
             ></el-input-number>
           </div>
           <div>最多已定：23</div>
         </div>
         <div class="btnContent">
-          <el-button type="primary" size="medium">应用</el-button>
+          <el-button type="primary" size="medium" @click="setRangePrice"
+            >应用</el-button
+          >
           <el-button size="medium">取消</el-button>
         </div>
       </div>
@@ -211,44 +213,77 @@
         <div class="formContent">
           <div>门市价</div>
           <div>
-            <el-input v-model="input" placeholder="请输入内容"></el-input>
+            <el-input
+              v-model="priceForm.priceA"
+              placeholder="请输入内容"
+            ></el-input>
           </div>
           <div>
-            <el-input v-model="input" placeholder="请输入内容"></el-input>
+            <el-input
+              v-model="priceForm.priceB"
+              placeholder="请输入内容"
+            ></el-input>
           </div>
           <div>
-            <el-input v-model="input" placeholder="请输入内容"></el-input>
+            <el-input
+              v-model="priceForm.priceC"
+              placeholder="请输入内容"
+            ></el-input>
           </div>
         </div>
         <div class="formContent">
           <div>结算价</div>
           <div>
-            <el-input v-model="input" placeholder="请输入内容"></el-input>
+            <el-input
+              v-model="priceForm.countPriceA"
+              placeholder="请输入内容"
+            ></el-input>
           </div>
           <div>
-            <el-input v-model="input" placeholder="请输入内容"></el-input>
+            <el-input
+              v-model="priceForm.countPriceB"
+              placeholder="请输入内容"
+            ></el-input>
           </div>
           <div>
-            <el-input v-model="input" placeholder="请输入内容"></el-input>
+            <el-input
+              v-model="priceForm.countPriceC"
+              placeholder="请输入内容"
+            ></el-input>
           </div>
         </div>
         <div class="formFooter">
           <div>库存</div>
           <div>
             计划人数：<el-input-number
-              v-model="num"
+              v-model="priceForm.peopleNum"
               controls-position="right"
               @change="handleChange"
-              :min="1"
-              :max="10"
+              :min="0"
             ></el-input-number>
           </div>
           <div>已选：23天</div>
         </div>
         <div class="btnContent">
-          <el-button type="primary" size="medium">选择日历</el-button>
-          <el-button type="primary" size="medium">应用</el-button>
+          <el-button
+            @click="chooseDate"
+            type="primary"
+            size="medium"
+            v-show="!choosn"
+            >选择日历</el-button
+          >
+          <el-button
+            type="primary"
+            size="medium"
+            @click="setPrice"
+            v-show="choosn"
+            >应用</el-button
+          >
           <el-button size="medium">取消</el-button>
+        </div>
+        <div>
+          <span style="color: red">*</span
+          >点击“选择日历”按钮后在左侧日历点击想要应用价格和库存的日期。
         </div>
       </div>
     </div>
@@ -274,6 +309,7 @@ export default {
     return {
       num: 0,
       index: null,
+      indexList: [],
       headOptions: {
         type: this.options.type,
         style: this.options.headStyle,
@@ -301,14 +337,26 @@ export default {
       ],
       time: { year, month, day },
       calendarList: [],
-      input: ''
+      input: '',
+      choosn: false,
+      formtime: [],
+      pickerBeginDateBefore: {
+        disabledDate: (time) => {
+          return (time.getTime() > new Date(`${this.time.year}-${this.time.month + 2}-01`).getTime() - 86400000) || time.getTime() < (new Date(`${this.time.year}-${this.time.month + 1}-01`).getTime())    //
+        }
+      }
     }
   },
   watch: {
-    options: {
+    options: {//父组件param对象改变会触发此函数,切换组件价格设置类型
       handler(newValue, oldValue) {
         this.pricetype = newValue.pricetype
-        //父组件param对象改变会触发此函数
+        //重置已选定的相关状态
+        this.calendarList.map(x => {
+          x.clickDay = false;
+        });
+        this.index = null
+        this.indexList = []
       },
       deep: true
     }
@@ -379,6 +427,7 @@ export default {
       this.time = utils.getNewDate(prevMonth);
       this.headOptions.date = `${utils.englishMonth(this.time.month)} ${this.time.year}`;
       this.visibleCalendar()
+      this.formtime = []
       this.$emit('handlePrevMonth');
     },
     // 下一个月
@@ -388,6 +437,7 @@ export default {
       this.time = utils.getNewDate(nextMonth);
       this.headOptions.date = `${utils.englishMonth(this.time.month)} ${this.time.year}`;
       this.visibleCalendar()
+      this.formtime = []
       this.$emit('handleNextMonth');
     },
     // 点击回到今天
@@ -395,28 +445,72 @@ export default {
       this.time = utils.getNewDate(new Date());
       this.headOptions.date = `${utils.englishMonth(this.time.month)} ${this.time.year}`;
       this.visibleCalendar()
+      this.formtime = []
       this.$emit('handleToday');
     },
     // 点击某一天
     handleClickDay(item, index) {
       this.$forceUpdate();
       this.$emit('handleClickDay', item);
-      this.calendarList.map(x => {
-        x.clickDay = false;
-      });
-      this.$set(item, 'clickDay', true);
-      this.index = index
+
+      if (this.pricetype != 3) {
+        this.calendarList.map(x => {
+          x.clickDay = false;
+        });
+        this.$set(item, 'clickDay', true);
+        this.index = index
+      } else {//多选的情况
+        if (this.choosn) {
+          if (item.clickDay) {
+            this.$set(item, 'clickDay', false);
+            this.indexList.splice(this.indexList.findIndex(e => e == index), 1)
+          } else {
+            this.$set(item, 'clickDay', true);
+            this.indexList.push(index)
+          }
+        }
+
+      }
     },
     handleChange() {
 
     },
     //单个日期设置价格
     setOnePrice() {
-      console.log(this.priceForm)
       this.calendarList[this.index].price = this.priceForm.priceA
       this.calendarList[this.index].countPrice = this.priceForm.countPriceA
       this.calendarList[this.index].num = this.priceForm.peopleNum - this.priceForm.orderNum
 
+    },
+    //日期范围设置价格
+    setRangePrice() {
+      if (this.formtime && this.formtime.length > 1) {
+        //获取起止日期
+        let startDay = new Date(this.formtime[0]).getDate()
+        let endDay = new Date(this.formtime[1]).getDate()
+        this.calendarList.forEach(ele => {
+          if (ele.day >= startDay && ele.day <= endDay && new Date(ele.date).getMonth() == this.time.month) {
+            ele.price = this.priceForm.priceA
+            ele.countPrice = this.priceForm.countPriceA
+            ele.num = this.priceForm.peopleNum - this.priceForm.orderNum
+          }
+        })
+        this.formtime = []
+      } else {
+        alert('请先选择日期范围')
+      }
+
+    },
+    //多个日期设置价格
+    setPrice() {
+      this.indexList.forEach(ele => {
+        this.calendarList[ele].price = this.priceForm.priceA
+        this.calendarList[ele].countPrice = this.priceForm.countPriceA
+        this.calendarList[ele].num = this.priceForm.peopleNum - this.priceForm.orderNum
+      })
+    },
+    chooseDate() {
+      this.choosn = true
     }
   },
   created() {
