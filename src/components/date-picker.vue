@@ -1,6 +1,5 @@
 <template>
   <div class="content">
-    {{ pricetype }}
     <div class="cc-calendar">
       <calendarHeader
         :headOptions="headOptions"
@@ -262,7 +261,7 @@
               :min="0"
             ></el-input-number>
           </div>
-          <div>已选：23天</div>
+          <div>已选：{{ indexList.length }}天</div>
         </div>
         <div class="btnContent">
           <el-button
